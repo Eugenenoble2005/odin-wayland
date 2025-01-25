@@ -1,6 +1,7 @@
 package wayland
 import "core:c"
 foreign import wayland "system:libwayland-client.so"
+import "core:fmt"
 Fixed :: c.int32_t
 
 Interface :: struct {
@@ -12,10 +13,6 @@ Interface :: struct {
 	events:       ^Message,
 }
 
-List :: struct {
-	prev: ^List,
-	next: ^List,
-}
 
 Message :: struct {
 	name:      cstring,
@@ -40,23 +37,6 @@ Argument :: struct #raw_union {
 	h: c.int32_t,
 }
 foreign wayland {
-	@(link_name = "wl_list_init")
-	InitList :: proc(_: ^List) ---
-
-	@(link_name = "wl_list_insert")
-	InsertIntoList :: proc(_: ^List, _: ^List) ---
-
-	@(link_name = "wl_list_remove")
-	RemoveFromList :: proc(_: ^List) ---
-
-	@(link_name = "wl_list_length")
-	LengthOfList :: proc(_: ^List) -> c.int ---
-
-	@(private, link_name = "wl_list_empty")
-	wl_list_empty :: proc(_: ^List) -> c.int ---
-
-	@(link_name = "wl_list_insert_list")
-	InsertListIntoList :: proc(_: ^List, _: ^List) ---
 
 	@(link_name = "wl_array_init")
 	InitArray :: proc(_: ^Array) ---
@@ -69,8 +49,4 @@ foreign wayland {
 
 	@(link_name = "wl_array_copy")
 	CopyArrayToArray :: proc(_: ^Array, _: ^Array) -> c.int ---
-
-
 }
-
-IsListEmpty :: proc(list: ^List) -> bool {return wl_list_empty(list) == 1}

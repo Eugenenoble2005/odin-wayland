@@ -160,3 +160,18 @@ InitSignal :: proc(signal: ^Signal) {
 AddSignal :: proc(signal: ^Signal, listener: ^Listener) {
 	InsertIntoList(signal.listener_list.prev, &listener.link)
 }
+
+GetSignal :: proc(signal: ^Signal, notify: proc(listener: ^Listener, data: rawptr)) -> ^Listener {
+	l: ^Listener
+	for x in ForEachInList(&l, &signal.listener_list, "link", .Forward) {
+		if x.notify == notify do return x
+	}
+	return nil
+}
+
+EmitSignal :: proc(signal: ^Signal, data: rawptr) {
+	l, next: ^Listener
+	for x in SafeForEachInList(&l, &next, &signal.listener_list, "link", .Forward) {
+		x.notify(x, data)
+	}
+}

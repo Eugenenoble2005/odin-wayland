@@ -10,6 +10,7 @@ Listener :: struct {
 Signal :: struct {
 	listener_list: List,
 }
+Resource :: struct {}
 Client :: struct {}
 Global :: struct {}
 
@@ -151,6 +152,27 @@ foreign wayland {
 
 	@(link_name = "wl_client_flush")
 	FlushClient :: proc(_: ^Client) ---
+
+	@(link_name = "wl_client_get_credentials")
+	GetClientCredentials :: proc(_: ^Client, _: c.int, _: c.int, _: c.int) ---
+
+	@(link_name = "wl_client_get_fd")
+	GetClientFd :: proc(_: ^Client) -> c.int ---
+
+	@(link_name = "wl_client_add_destroy_listener")
+	AddDestroyListenerToClient :: proc(_: ^Client, _: ^Listener) ---
+
+	@(link_name = "wl_client_get_destroy_listener")
+	GetDestroyListenerFromClient :: proc(_: ^Client, _: proc(_: ^Listener, _: rawptr)) -> ^Listener ---
+
+	@(link_name = "wl_client_add_destroy_late_listener")
+	AddLateDestroyListenerToClient :: proc(_: ^Client, _: ^Listener) ---
+
+	@(link_name = "wl_client_get_destroy_late_listener")
+	GetLateDestroyListenerFromClient :: proc(_: ^Client, _: proc(_: ^Listener, _: rawptr)) -> ^Listener ---
+
+	@(link_name = "wl_client_get_object")
+	GetObjectFromClient :: proc(_: ^Client, _: c.uint32_t) -> ^Resource ---
 }
 
 InitSignal :: proc(signal: ^Signal) {

@@ -17,5 +17,4 @@ foreign wayland {
 
 	@(link_name = "wl_egl_window_get_attached_size")
 	GetEglWindowAttachedSize :: proc(_: ^EglWindow, _: ^c.int, _: ^c.int) ---
-
 }

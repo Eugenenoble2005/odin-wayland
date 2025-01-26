@@ -1,6 +1,7 @@
 package wayland
 import "core:c"
 import "core:fmt"
+import "core:testing"
 List :: struct {
 	prev: ^List,
 	next: ^List,
@@ -83,8 +84,8 @@ SafeForEachInList :: proc(
 	link := (^List)(uintptr(pos^) + offset_of_by_string(T, member))
 	tmp^ = container_of(link.next if direction == .Forward else link.prev, Y, member)
 	if link^ == head^ do return nil, false
+	pp := pos^
 	pos^ = tmp^
-	pp := tmp^
 	tmp^ = container_of(link.next if direction == .Forward else link.prev, Y, member)
 	return pp, true
 }
@@ -108,7 +109,8 @@ ForEachInArray :: proc(pos: ^^$T, array: ^Array) -> (^T, bool) {
 
 element :: struct {}
 
-example_array :: proc() {
+@(test)
+ArrayIterationTest :: proc(t: ^testing.T) {
 	array: Array
 	string_array := [?]string{"pizza", "ice cream", "cake", "pie"}
 	InitArray(&array)
@@ -118,12 +120,16 @@ example_array :: proc() {
 		(^string)(p)^ = i
 	}
 	p: ^string
+	count := 0
 	for x in ForEachInArray(&p, &array) {
-		fmt.println(x^)
+		count += 1
+		if count == 4 do testing.expect(t, x^ == "pie")
 	}
 }
 
-example_list :: proc() {
+@(test)
+ListIterationTest :: proc(t: ^testing.T) {
+	using testing
 	element :: struct {
 		i:    string,
 		link: List,
@@ -141,14 +147,19 @@ example_list :: proc() {
 	InsertIntoList(list.prev, &e2.link)
 	InsertIntoList(list.prev, &e3.link)
 	InsertIntoList(list.prev, &e4.link)
+	count := 0
 	for y in ForEachInList(&e, &list, "link", .Forward) {
-		fmt.println(y.i)
+		count += 1
+		if count == 4 do expect(t, y.i == "pie")
+
 	}
 	//reset pointer
 	e = nil
+	count = 0
 	//reverse 
 	for x in ForEachInList(&e, &list, "link", .Backward) {
-		fmt.println(x.i)
+		count += 1
+		if count == 4 do expect(t, x.i == "pizza")
 	}
 
 }

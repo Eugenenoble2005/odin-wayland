@@ -71,4 +71,4 @@ ScanProtocol :: proc(el: ^xml.Element) {
 Die :: proc(msg: string) {
 	fmt.println(msg)
 	os.exit(0)
-}
+

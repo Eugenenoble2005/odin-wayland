@@ -1,5 +1,7 @@
 package wayland
 import "core:c"
+import "core:log"
+import "core:testing"
 foreign import wayland "system:libwayland-server.so"
 EventSource :: struct {}
 EventLoop :: struct {}
@@ -13,6 +15,11 @@ Signal :: struct {
 Resource :: struct {}
 Client :: struct {}
 Global :: struct {}
+IteratorResult :: enum c.int {
+	Stop,
+	Continue,
+}
+
 
 foreign wayland {
 	@(link_name = "wl_event_loop_create")
@@ -173,6 +180,41 @@ foreign wayland {
 
 	@(link_name = "wl_client_get_object")
 	GetObjectFromClient :: proc(_: ^Client, _: c.uint32_t) -> ^Resource ---
+
+	@(link_name = "wl_client_post_no_memory")
+	PostNoMemoryFromClient :: proc(_: ^Client) ---
+
+	@(link_name = "wl_client_post_implementation_error")
+	PostImplementationErrorFromClient :: proc(_: ^Client, _: cstring, #c_vararg _: ..any) ---
+
+	@(link_name = "wl_client_add_resource_created_listener")
+	AddResourceCreatedListenerToClient :: proc(_: ^Client, _: ^Listener) ---
+
+	@(link_name = "wl_client_for_each_resource")
+	ForEachResourceInClient :: proc(_: ^Client, _: proc(_: ^Resource, _: rawptr) -> IteratorResult, _: rawptr) ---
+
+	@(link_name = "wl_client_set_user_data")
+	SetClientUserData :: proc(_: ^Client, _: rawptr, _: proc(_: rawptr)) ---
+
+	@(link_name = "wl_client_set_max_buffer_size")
+	SetClientMaxBufferSize :: proc(_: ^Client, _: c.size_t) ---
+
+	@(link_name = "wl_signal_emit_mutable")
+	EmitMutableSignal :: proc(_: ^Signal, _: rawptr) ---
+
+	@(link_name = "wl_resource_post_event")
+	PostResourceEvent :: proc(_: ^Resource, _: c.uint32_t, #c_vararg _: ..any) ---
+
+	@(link_name = "wl_resource_post_event_array")
+	PostResourceEventArray :: proc(_: ^Resource, _: c.uint32_t, _: ^Argument) ---
+
+	@(link_name = "wl_resource_queue_event")
+	QueueResourceEvent :: proc(_: ^Resource, _: c.uint32_t, #c_vararg _: ..any) ---
+
+	@(link_name = "wl_resource_queue_event_array")
+	QueueResourceEventArray :: proc(_: ^Resource, _: c.uint32_t, _: ^Argument) ---
+
+
 }
 
 InitSignal :: proc(signal: ^Signal) {
@@ -196,4 +238,24 @@ EmitSignal :: proc(signal: ^Signal, data: rawptr) {
 	for x in SafeForEachInList(&l, &next, &signal.listener_list, "link", .Forward) {
 		x.notify(x, data)
 	}
+}
+
+@(test)
+EmitSignalToOneListenerTest :: proc(t: ^testing.T) {
+	NotifySignal :: proc(listener: ^Listener, data: rawptr) {
+		//cast data to int pointer, dereference and increment
+		(^int)(data)^ += 1
+	}
+	count := 0
+	counter: int
+	signal: Signal
+	l1: Listener
+	l1.notify = NotifySignal
+	InitSignal(&signal)
+	AddSignal(&signal, &l1)
+	for x in 0 ..< 100 {
+		counter += 1
+		EmitSignal(&signal, &count)
+	}
+	testing.expect(t, counter == 100)
 }

@@ -50,3 +50,19 @@ foreign wayland {
 	@(link_name = "wl_array_copy")
 	CopyArrayToArray :: proc(_: ^Array, _: ^Array) -> c.int ---
 }
+
+FixedToDouble :: proc(f: Fixed) -> f64 {
+	return f64(f) / 256.0
+}
+
+FixedFromDouble :: proc(d: f64) -> Fixed {
+	return Fixed(d * 256.0)
+}
+
+FixedToInt :: proc(f: Fixed) -> int {
+	return int(f / 256) //to 64bit?? 
+}
+
+FixedFromInt :: proc(i: int) -> Fixed {
+	return Fixed(i * 256)
+}

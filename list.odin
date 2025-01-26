@@ -1,6 +1,6 @@
 package wayland
-import "base:intrinsics"
 import "core:c"
+import "core:fmt"
 List :: struct {
 	prev: ^List,
 	next: ^List,
@@ -92,4 +92,63 @@ SafeForEachInList :: proc(
 IterationDirection :: enum {
 	Forward,
 	Backward,
+}
+
+ForEachInArray :: proc(pos: ^^$T, array: ^Array) -> (^T, bool) {
+	if pos^ == nil {
+		pos^ = auto_cast array.data
+	}
+	if (array.size == 0) do return nil, false
+	if uintptr(pos^) > (uintptr(array.data) + uintptr(array.size)) do return nil, false
+	pp := pos^
+	pos^ = auto_cast (uintptr(pos^) + uintptr(size_of(T)))
+	return pp, true
+
+}
+
+element :: struct {}
+
+example_array :: proc() {
+	array: Array
+	string_array := [?]string{"pizza", "ice cream", "cake", "pie"}
+	InitArray(&array)
+	defer ReleaseArray(&array)
+	for i in string_array {
+		p := AddToArray(&array, size_of(string))
+		(^string)(p)^ = i
+	}
+	p: ^string
+	for x in ForEachInArray(&p, &array) {
+		fmt.println(x^)
+	}
+}
+
+example_list :: proc() {
+	element :: struct {
+		i:    string,
+		link: List,
+	}
+	list: List
+	e: ^element
+	e1, e2, e3, e4: element
+	e1.i = "pizza"
+	e2.i = "ice cream"
+	e3.i = "cake"
+	e4.i = "pie"
+
+	InitList(&list)
+	InsertIntoList(list.prev, &e1.link)
+	InsertIntoList(list.prev, &e2.link)
+	InsertIntoList(list.prev, &e3.link)
+	InsertIntoList(list.prev, &e4.link)
+	for y in ForEachInList(&e, &list, "link", .Forward) {
+		fmt.println(y.i)
+	}
+	//reset pointer
+	e = nil
+	//reverse 
+	for x in ForEachInList(&e, &list, "link", .Backward) {
+		fmt.println(x.i)
+	}
+
 }

@@ -3,6 +3,7 @@ import "core:encoding/xml"
 import "core:fmt"
 import "core:log"
 import "core:os"
+import "core:strconv"
 import "core:strings"
 
 Side :: enum {
@@ -39,8 +40,10 @@ Request :: struct {
 	name:          string,
 	description:   string,
 	since:         string,
+	opcode:        int,
 	args:          [dynamic]Arg,
 	is_destructor: bool,
+	has_newid:     bool,
 }
 Event :: Request //??
 
@@ -103,8 +106,13 @@ parse_protocol :: proc(doc: ^xml.Document) {
 				}
 			}
 		}
-		//enums which can be defined anywhere
 	}
+}
+wl_type_to_odin_type :: proc(arg: Arg) -> string {
+	if arg.type == "object" {
+		if len(arg.interface) != 0 do return strings.concatenate({"^", arg.interface})
+	}
+	return type_map[arg.type]
 }
 parse_interface :: proc(doc: ^xml.Document, el: ^xml.Element) -> Interface {
 	interface: Interface
@@ -113,15 +121,20 @@ parse_interface :: proc(doc: ^xml.Document, el: ^xml.Element) -> Interface {
 		if attrib.key == "name" do interface.name = attrib.val
 		if attrib.key == "version" do interface.version = attrib.val
 	}
+	opcode := 0
 	for val in el.value {
 		node := doc.elements[val.(Element_Id)]
 		//requst 
 		if node.ident == "request" {
-			append(&interface.requests, parse_requests_or_events(doc, &node))
+			append(
+				&interface.requests,
+				parse_requests_or_events(doc, &node, interface.name, opcode),
+			)
+			opcode += 1
 		}
 		//event
 		if node.ident == "event" {
-			append(&interface.events, parse_requests_or_events(doc, &node))
+			append(&interface.events, parse_requests_or_events(doc, &node, interface.name, opcode))
 		}
 		//enum
 		if node.ident == "enum" {
@@ -130,12 +143,19 @@ parse_interface :: proc(doc: ^xml.Document, el: ^xml.Element) -> Interface {
 	}
 	return interface
 }
-parse_requests_or_events :: proc(doc: ^xml.Document, el: ^xml.Element) -> Request {
+parse_requests_or_events :: proc(
+	doc: ^xml.Document,
+	el: ^xml.Element,
+	interface_name: string,
+	opcode: int,
+) -> Request {
 	request: Request
 	//initially set to not a destructor, will be updated in below loop if necessary
 	request.is_destructor = false
+	request.has_newid = false
+	request.opcode = opcode
 	for attrib in el.attribs {
-		if attrib.key == "name" do request.name = attrib.val
+		if attrib.key == "name" do request.name = strings.concatenate({interface_name, "_", attrib.val})
 		if attrib.key == "type" {
 			if attrib.val == "destructor" {
 				request.is_destructor = true
@@ -149,7 +169,13 @@ parse_requests_or_events :: proc(doc: ^xml.Document, el: ^xml.Element) -> Reques
 		if node.ident == "arg" {
 			arg: Arg
 			for attrib in node.attribs {
-				if attrib.key == "type" do arg.type = attrib.val
+				if attrib.key == "type" {
+					arg.type = attrib.val
+					if arg.type == "new_id" {
+						request.has_newid = true
+						arg.new_type = true
+					}
+				}
 				if attrib.key == "name" do arg.name = attrib.val
 				if attrib.key == "interface" do arg.interface = attrib.val
 				if attrib.key == "enum" do arg.enumeration = attrib.val
@@ -171,10 +197,10 @@ parse_enum :: proc(doc: ^xml.Document, el: ^xml.Element, interface_name: string)
 	for val in el.value {
 		node := doc.elements[val.(Element_Id)]
 		if node.ident == "description" {
-			enum_.description = el.value[0].(string)
+			enum_.description, _ = el.value[0].(string)
 		}
 		if node.ident == "entry" {
-			entry_id := val.(Element_Id)
+			entry_id, _ := val.(Element_Id)
 			entry_data := make(map[string]string)
 			defer delete(entry_data)
 			entry_name, _ := xml.find_attribute_val_by_key(doc, entry_id, "name")
@@ -204,17 +230,256 @@ die :: proc(msg: string) {
 
 emit_enums :: proc() {
 	using strings
-	fmt.println(protocol_data.enums)
 	for enumeration in protocol_data.enums {
-		h_ := concatenate({enumeration.name, " ", ":: ", "enum c.int32_t", "{\r\n"})
+		enum_ := concatenate({enumeration.name, " ", ":: ", "enum c.int32_t", "{\r\n"})
 		for value in enumeration.values {
 			for key, val in value {
-				h_ = concatenate({h_, repeat(" ", Tab_Size), key, " = ", val, ",", "\r\n"})
+				enum_ = concatenate({enum_, repeat(" ", Tab_Size), key, " = ", val, ",", "\r\n"})
 			}
 		}
-		h_ = concatenate({h_, "}", "\r\n"})
-		write_to_buffer(h_)
+		enum_ = concatenate({enum_, "}", "\r\n"})
+		write_to_buffer(enum_)
 	}
+}
+
+emit_interface :: proc() {
+	using strings
+	//first emit simple opaque structs
+	for interface in protocol_data.interfaces {
+		//exclude wl_display because that is in the core library.
+		if interface.name == "wl_display" do continue
+		struct_ := concatenate({interface.name, " :: ", "struct {}"})
+
+		//wl_interface
+		interface_ := concatenate({interface.name, "_interface", " : ", "wl.Interface"})
+
+		//userdata getters and setters
+		//there is definetly a better way to do this
+		setter := concatenate(
+			{
+				interface.name,
+				"_set_user_data",
+				" :: ",
+				"proc(",
+				interface.name,
+				" : ",
+				"^",
+				interface.name,
+				",",
+				"user_data",
+				" : rawptr",
+				")",
+				"{",
+				LineBreak,
+			},
+		)
+		setter = concatenate(
+			{
+				setter,
+				repeat(" ", Tab_Size),
+				"wl.proxy_set_user_data((^wl.Proxy)",
+				interface.name,
+				", user_data)",
+				LineBreak,
+				"}",
+			},
+		)
+		getter := concatenate(
+			{
+				interface.name,
+				"_get_user_data",
+				" :: ",
+				"proc(",
+				interface.name,
+				" : ",
+				"^",
+				interface.name,
+				") -> rawptr ",
+				"{",
+				LineBreak,
+			},
+		)
+		getter = concatenate(
+			{
+				getter,
+				repeat(" ", Tab_Size),
+				"return ",
+				"wl.proxy_get_user_data((^wl.Proxy)",
+				interface.name,
+				")",
+				LineBreak,
+				"}",
+			},
+		)
+
+		version := concatenate(
+			{
+				interface.name,
+				"_get_version",
+				" :: ",
+				"proc(",
+				interface.name,
+				" : ",
+				"^",
+				interface.name,
+				") -> c.uint32_t ",
+				"{",
+				LineBreak,
+			},
+		)
+		version = concatenate(
+			{
+				version,
+				repeat(" ", Tab_Size),
+				"return ",
+				"wl.proxy_get_version((^wl.Proxy)",
+				interface.name,
+				")",
+				LineBreak,
+				"}",
+			},
+		)
+		write_to_buffer(struct_)
+		write_to_buffer(interface_)
+		write_to_buffer(setter)
+		write_to_buffer(getter)
+		write_to_buffer(version)
+		write_to_buffer(LineBreak)
+	}
+}
+emit_requests :: proc() {
+	using strings
+	for interface in protocol_data.interfaces {
+		for request in interface.requests {
+			//if destructor request 
+			if request.is_destructor {
+				emit_client_destructor_request(request, interface)
+				continue
+			}
+			if request.has_newid {
+				emit_client_new_type_request(request, interface)
+				continue
+			}
+
+			request_body := concatenate(
+				{request.name, " :: ", "proc(", interface.name, ": ^", interface.name},
+			)
+			//go through args
+			for arg in request.args {
+				request_body = concatenate(
+					{request_body, ",", arg.name, ": ", wl_type_to_odin_type(arg)},
+				)
+			}
+			opcode_to_int_buf: [64]u8
+			request_body = concatenate({request_body, " ){", LineBreak})
+			request_body = concatenate(
+				{
+					request_body,
+					repeat(" ", Tab_Size),
+					"wl.proxy_marshal_flags(",
+					"(^wl.Proxy)",
+					interface.name,
+					", ",
+					strconv.itoa(opcode_to_int_buf[:], request.opcode),
+					", ",
+					"nil, ",
+					"wl.proxy_get_version(",
+					"(^wl.Proxy)",
+					interface.name,
+					"), ",
+					"0", //?
+				},
+			)
+			//append variables to proxy_marshal_flags
+			for arg in request.args {
+				request_body = concatenate({request_body, ", ", arg.name})
+			}
+			request_body = concatenate({request_body, ")", LineBreak, "}"})
+			write_to_buffer(request_body)
+			write_to_buffer(LineBreak)
+		}
+	}
+}
+emit_client_destructor_request :: proc(request: Request, interface: Interface) {
+	using strings
+	request_body := concatenate(
+		{request.name, " :: ", "proc(", interface.name, ": ^", interface.name, "){", LineBreak},
+	)
+	opcode_to_int_buf: [64]u8
+	request_body = concatenate(
+		{
+			request_body,
+			repeat(" ", Tab_Size),
+			"wl.proxy_marshal_flags(",
+			"(^wl.Proxy)",
+			interface.name,
+			", ",
+			strconv.itoa(opcode_to_int_buf[:], request.opcode),
+			", ",
+			"nil, ",
+			"wl.proxy_get_version(",
+			"(^wl.Proxy)",
+			interface.name,
+			"), ",
+			"wl.MARSHAL_FLAG_DESTROY",
+			")",
+			LineBreak,
+			"}",
+		},
+	)
+	write_to_buffer(request_body)
+	write_to_buffer(LineBreak)
+}
+emit_client_new_type_request :: proc(request: Request, interface: Interface) {
+	using strings
+	request_body := concatenate(
+		{request.name, " :: ", "proc(", interface.name, ": ^", interface.name},
+	)
+	new_id_arg: Arg
+	//go through args but skip the new_id 
+	for arg in request.args {
+		if arg.new_type {
+			new_id_arg = arg
+			continue
+		}
+		request_body = concatenate({request_body, ",", arg.name, ": ", wl_type_to_odin_type(arg)})
+	}
+	opcode_to_int_buf: [64]u8
+	request_body = concatenate({request_body, " ) -> ^", new_id_arg.interface, "{", LineBreak})
+	request_body = concatenate({request_body, repeat("", Tab_Size), "data: ^wl.Proxy", LineBreak})
+	request_body = concatenate(
+		{
+			request_body,
+			repeat(" ", Tab_Size),
+			"data = wl.proxy_marshal_flags(",
+			"(^wl.Proxy)",
+			interface.name,
+			", ",
+			strconv.itoa(opcode_to_int_buf[:], request.opcode),
+			", ",
+			"&",
+			new_id_arg.interface,
+			"_interface",
+			",",
+			"wl.proxy_get_version(",
+			"(^wl.Proxy)",
+			interface.name,
+			"), ",
+			"0,", //?
+			"nil",
+		},
+	)
+	//append variables to proxy_marshal_flags
+	for arg in request.args {
+		if arg.new_type do continue
+		request_body = concatenate({request_body, ", ", arg.name})
+	}
+	request_body = concatenate({request_body, ")", LineBreak})
+	request_body = concatenate(
+		{request_body, "return (^", new_id_arg.interface, ") data", LineBreak, "}"},
+	)
+	write_to_buffer(request_body)
+	write_to_buffer(LineBreak)
 }
 
 main :: proc() {
@@ -230,11 +495,13 @@ main :: proc() {
 	parse_protocol(doc)
 
 	//emissions
+	emit_interface()
+	emit_requests()
 	emit_enums()
 	fmt.println(strings.to_string(Buffer))
 }
 
 write_to_buffer :: proc(text: string) {
 	strings.write_string(&Buffer, text)
-	strings.write_string(&Buffer, LineBreak)
+	if text != LineBreak do strings.write_string(&Buffer, LineBreak)
 }

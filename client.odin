@@ -10,6 +10,8 @@ EventQueue :: struct {}
 
 Object :: struct {}
 
+MARSHAL_FLAG_DESTROY :: (1 << 0)
+
 @(link_prefix = "wl_")
 foreign wayland {
 	@(link_name = "event_queue_destroy")

@@ -7,26 +7,26 @@ List :: struct {
 	next: ^List,
 }
 
-InitList :: proc(list: ^List) {
+list_init :: proc(list: ^List) {
 	list.prev = list
 	list.next = list
 }
 
-InsertIntoList :: proc(list: ^List, elm: ^List) {
+list_insert :: proc(list: ^List, elm: ^List) {
 	elm.prev = list
 	elm.next = list.next
 	list.next = elm
 	elm.next.prev = elm
 }
 
-RemoveFromList :: proc(elm: ^List) {
+list_remove :: proc(elm: ^List) {
 	elm.prev.next = elm.next
 	elm.next.prev = elm.prev
 	elm.next = nil
 	elm.prev = nil
 }
 
-LengthOfList :: proc(list: ^List) -> int {
+list_length :: proc(list: ^List) -> int {
 	e: ^List
 	count: int = 0
 	e = list.next
@@ -37,19 +37,19 @@ LengthOfList :: proc(list: ^List) -> int {
 	return count
 }
 
-IsListEmpty :: proc(list: ^List) -> bool {
+list_empty :: proc(list: ^List) -> bool {
 	return list.next == list
 }
 
-InsertListIntoList :: proc(list: ^List, other: ^List) {
-	if IsListEmpty(other) do return
+list_insert_list :: proc(list: ^List, other: ^List) {
+	if list_empty(other) do return
 	other.next.prev = list
 	other.prev.next = list.next
 	list.next.prev = other.prev
 	list.next = other.next
 }
 
-ForEachInList :: proc(
+list_for_each :: proc(
 	pos: ^^$T,
 	head: ^List,
 	$member: string,
@@ -68,7 +68,7 @@ ForEachInList :: proc(
 	return pp, true
 }
 
-SafeForEachInList :: proc(
+list_for_each_safe :: proc(
 	pos: ^^$T,
 	tmp: ^^$Y,
 	head: ^List,
@@ -95,9 +95,9 @@ IterationDirection :: enum {
 	Backward,
 }
 
-ForEachInArray :: proc(pos: ^^$T, array: ^Array) -> (^T, bool) {
+array_for_each :: proc(pos: ^^$T, array: ^Array) -> (^T, bool) {
 	if pos^ == nil {
-		pos^ = auto_cast array.data
+		pos^ = (^T)(array.data)
 	}
 	if (array.size == 0) do return nil, false
 	if uintptr(pos^) > (uintptr(array.data) + uintptr(array.size)) do return nil, false
@@ -110,7 +110,7 @@ ForEachInArray :: proc(pos: ^^$T, array: ^Array) -> (^T, bool) {
 element :: struct {}
 
 @(test)
-ArrayIterationTest :: proc(t: ^testing.T) {
+array_iteration_test :: proc(t: ^testing.T) {
 	array: Array
 	string_array := [?]string{"pizza", "ice cream", "cake", "pie"}
 	InitArray(&array)
@@ -121,14 +121,14 @@ ArrayIterationTest :: proc(t: ^testing.T) {
 	}
 	p: ^string
 	count := 0
-	for x in ForEachInArray(&p, &array) {
+	for x in array_for_each(&p, &array) {
 		count += 1
 		if count == 4 do testing.expect(t, x^ == "pie")
 	}
 }
 
 @(test)
-ListIterationTest :: proc(t: ^testing.T) {
+list_iteration_test :: proc(t: ^testing.T) {
 	using testing
 	element :: struct {
 		i:    string,
@@ -142,13 +142,13 @@ ListIterationTest :: proc(t: ^testing.T) {
 	e3.i = "cake"
 	e4.i = "pie"
 
-	InitList(&list)
-	InsertIntoList(list.prev, &e1.link)
-	InsertIntoList(list.prev, &e2.link)
-	InsertIntoList(list.prev, &e3.link)
-	InsertIntoList(list.prev, &e4.link)
+	list_init(&list)
+	list_insert(list.prev, &e1.link)
+	list_insert(list.prev, &e2.link)
+	list_insert(list.prev, &e3.link)
+	list_insert(list.prev, &e4.link)
 	count := 0
-	for y in ForEachInList(&e, &list, "link", .Forward) {
+	for y in list_for_each(&e, &list, "link", .Forward) {
 		count += 1
 		if count == 4 do expect(t, y.i == "pie")
 
@@ -157,7 +157,7 @@ ListIterationTest :: proc(t: ^testing.T) {
 	e = nil
 	count = 0
 	//reverse 
-	for x in ForEachInList(&e, &list, "link", .Backward) {
+	for x in list_for_each(&e, &list, "link", .Backward) {
 		count += 1
 		if count == 4 do expect(t, x.i == "pizza")
 	}

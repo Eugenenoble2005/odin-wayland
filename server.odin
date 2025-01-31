@@ -19,223 +19,157 @@ IteratorResult :: enum c.int {
 	Stop,
 	Continue,
 }
-
-
 foreign wayland {
-	@(link_name = "wl_event_loop_create")
-	CreateEventLoop :: proc() -> ^EventLoop ---
+	event_loop_create :: proc() -> ^EventLoop ---
 
-	@(link_name = "wl_event_loop_destroy")
-	DestroyEventLoop :: proc(_: ^EventLoop) ---
+	event_loop_destroy :: proc(_: ^EventLoop) ---
 
-	@(link_name = "wl_event_loop_add_fd")
-	AddEventLoopFd :: proc(_: ^EventLoop, _: c.int, _: c.uint32_t, _: proc(_: c.int, _: c.uint32_t, _: rawptr) -> c.int, _: rawptr) -> ^EventSource ---
+	event_loop_add_fd :: proc(_: ^EventLoop, _: c.int, _: c.uint32_t, _: proc(_: c.int, _: c.uint32_t, _: rawptr) -> c.int, _: rawptr) -> ^EventSource ---
 
-	@(link_name = "wl_event_source_fd_update")
-	UpdateEventSourceFd :: proc(_: ^EventSource, _: c.uint32_t) -> c.int ---
+	event_source_fd_update :: proc(_: ^EventSource, _: c.uint32_t) -> c.int ---
 
-	@(link_name = "wl_event_loop_add_timer")
-	AddTimerToEventLoop :: proc(_: ^EventLoop, _: proc(_: rawptr), _: rawptr) -> ^EventSource ---
+	event_loop_add_timer :: proc(_: ^EventLoop, _: proc(_: rawptr), _: rawptr) -> ^EventSource ---
 
-	@(link_name = "wl_event_loop_add_signal")
-	AddSignalToEventLoop :: proc(_: ^EventLoop, _: c.int, _: proc(_: c.int, _: rawptr) -> c.int, _: rawptr) -> ^EventSource ---
+	event_loop_add_signal :: proc(_: ^EventLoop, _: c.int, _: proc(_: c.int, _: rawptr) -> c.int, _: rawptr) -> ^EventSource ---
 
-	@(link_name = "wl_event_source_timer_update")
-	UpdateEventSourceTimer :: proc(_: ^EventSource, _: c.int) -> c.int ---
+	event_source_timer_update :: proc(_: ^EventSource, _: c.int) -> c.int ---
 
-	@(link_name = "wl_event_source_remove")
-	RemoveEventSource :: proc(_: ^EventSource) -> c.int ---
+	event_source_remove :: proc(_: ^EventSource) -> c.int ---
 
-	@(link_name = "wl_event_source_check")
-	CheckEventSource :: proc(_: ^EventSource) ---
+	event_source_check :: proc(_: ^EventSource) ---
 
-	@(link_name = "wl_event_loop_dispatch")
-	DispatchEventLoop :: proc(_: ^EventLoop, _: c.int) -> c.int ---
+	event_loop_dispatch :: proc(_: ^EventLoop, _: c.int) -> c.int ---
 
-	@(link_name = "wl_event_loop_dispatch_idle")
-	DispatchIdleEventLoop :: proc(_: ^EventLoop) -> c.int ---
+	event_loop_dispatch_idle :: proc(_: ^EventLoop) -> c.int ---
 
-	@(link_name = "wl_event_loop_add_idle")
-	AddIdleToEventLoop :: proc(_: ^EventLoop, _: proc(_: rawptr), _: rawptr) -> ^EventSource ---
+	event_loop_add_idle :: proc(_: ^EventLoop, _: proc(_: rawptr), _: rawptr) -> ^EventSource ---
 
-	@(link_name = "wl_event_loop_get_fd")
-	GetEventLoopFd :: proc(_: ^EventLoop) -> c.int ---
+	event_loop_get_fd :: proc(_: ^EventLoop) -> c.int ---
 
-	@(link_name = "wl_event_loop_add_destroy_listener")
-	AddDestroyListenerToEventLoop :: proc(_: ^EventLoop, _: ^Listener) ---
+	event_loop_add_destroy_listener :: proc(_: ^EventLoop, _: ^Listener) ---
 
-	@(link_name = "wl_event_loop_get_destroy_listener")
-	GetDestroyListenerFromEventLoop :: proc(_: ^EventLoop, _: proc(_: ^Listener, _: rawptr)) -> ^Listener ---
+	event_loop_get_destroy_listener :: proc(_: ^EventLoop, _: proc(_: ^Listener, _: rawptr)) -> ^Listener ---
 
-	@(link_name = "wl_display_create")
-	CreateDisplay :: proc() -> ^Display ---
+	display_create :: proc() -> ^Display ---
 
-	@(link_name = "wl_display_destroy")
-	DestroyDisplay :: proc(_: ^Display) ---
+	display_destroy :: proc(_: ^Display) ---
 
-	@(link_name = "wl_display_get_event_loop")
-	GetEventLoopFromDisplay :: proc(_: ^Display) -> ^EventLoop ---
+	display_get_event_loop :: proc(_: ^Display) -> ^EventLoop ---
 
-	@(link_name = "wl_display_add_socket")
-	AddSocketToDisplay :: proc(_: ^Display, _: cstring) -> c.int ---
+	display_add_socket :: proc(_: ^Display, _: cstring) -> c.int ---
 
-	@(link_name = "wl_display_add_socket_auto")
-	AddSocketToDisplayAuto :: proc(_: ^Display) -> cstring ---
+	display_add_socket_auto :: proc(_: ^Display) -> cstring ---
 
-	@(link_name = "wl_display_terminate")
-	TerminateDisplay :: proc(_: ^Display) ---
+	display_terminate :: proc(_: ^Display) ---
 
-	@(link_name = "wl_display_run")
-	RunDisplay :: proc(_: ^Display) ---
+	display_run :: proc(_: ^Display) ---
 
-	@(link_name = "wl_display_flush_clients")
-	FlushDisplayClients :: proc(_: ^Display) ---
+	display_flush_clients :: proc(_: ^Display) ---
 
-	@(link_name = "wl_display_destroy_clients")
-	DestroyDisplayClients :: proc(_: ^Display) ---
+	display_destroy_clients :: proc(_: ^Display) ---
 
-	@(link_name = "wl_display_set_default_max_buffer_size")
-	SetDisplayDefaultMaxBufferSize :: proc(_: ^Display, _: c.size_t) ---
+	display_set_default_max_buffer_size :: proc(_: ^Display, _: c.size_t) ---
 
-	@(link_name = "wl_display_get_serial")
-	GetDisplaySerial :: proc(_: ^Display) -> c.uint32_t ---
+	display_get_serial :: proc(_: ^Display) -> c.uint32_t ---
 
-	@(link_name = "wl_display_next_serial")
-	NextDisplaySerial :: proc(_: ^Display) -> c.uint32_t ---
+	display_next_serial :: proc(_: ^Display) -> c.uint32_t ---
 
-	@(link_name = "wl_display_add_destroy_listener")
-	AddDestroyListenerToDisplay :: proc(_: ^Display, _: ^Listener) ---
+	display_add_destroy_listener :: proc(_: ^Display, _: ^Listener) ---
 
-	@(link_name = "wl_display_add_client_created_listener")
-	AddClientCreatedListenerToDisplay :: proc(_: ^Display, _: ^Listener) ---
+	display_add_client_created_listener :: proc(_: ^Display, _: ^Listener) ---
 
-	@(link_name = "wl_display_get_destroy_listener")
-	GetDisplayDestroyListener :: proc(_: ^Display, _: proc(_: ^Listener, _: rawptr)) -> ^Listener ---
+	display_get_destroy_listener :: proc(_: ^Display, _: proc(_: ^Listener, _: rawptr)) -> ^Listener ---
 
-	@(link_name = "wl_global_create")
-	CreateGlobal :: proc(_: ^Display, _: ^Interface, _: c.int, _: rawptr, _: proc(_: ^Client, _: rawptr, _: c.uint32_t, _: c.uint32_t)) -> ^Global ---
+	global_create :: proc(_: ^Display, _: ^Interface, _: c.int, _: rawptr, _: proc(_: ^Client, _: rawptr, _: c.uint32_t, _: c.uint32_t)) -> ^Global ---
 
-	@(link_name = "wl_global_remove")
-	RemoveGlobal :: proc(_: ^Global) ---
+	global_remove :: proc(_: ^Global) ---
 
-	@(link_name = "wl_global_destroy")
-	DestroyGlobal :: proc(_: ^Global) ---
+	global_destroy :: proc(_: ^Global) ---
 
-	@(link_name = "wl_display_set_global_filter")
-	SetDisplayGlobalFilter :: proc(_: ^Display, _: proc(_: ^Client, _: ^Global, _: rawptr), _: rawptr) ---
+	display_set_global_filter :: proc(_: ^Display, _: proc(_: ^Client, _: ^Global, _: rawptr), _: rawptr) ---
 
-	@(link_name = "wl_global_get_interface")
-	GetGlobalInterface :: proc(_: ^Global) -> ^Interface ---
+	global_get_interface :: proc(_: ^Global) -> ^Interface ---
 
-	@(link_name = "wl_global_get_name")
-	GetGlobalName :: proc(_: ^Global, _: ^Client) -> c.uint32_t ---
+	global_get_name :: proc(_: ^Global, _: ^Client) -> c.uint32_t ---
 
-	@(link_name = "wl_global_get_version")
-	GetGlobalVersion :: proc(_: ^Global) -> c.uint32_t ---
+	global_get_version :: proc(_: ^Global) -> c.uint32_t ---
 
-	@(link_name = "wl_global_get_display")
-	GetGlobalDisplay :: proc(_: ^Global) -> ^Display ---
+	global_get_display :: proc(_: ^Global) -> ^Display ---
 
-	@(link_name = "wl_global_get_user_data")
-	GetGlobalUserData :: proc(_: ^Global) -> rawptr ---
+	global_get_user_data :: proc(_: ^Global) -> rawptr ---
 
-	@(link_name = "wl_global_set_user_data")
-	SetGlobalUserData :: proc(_: ^Global, _: rawptr) ---
+	global_set_user_data :: proc(_: ^Global, _: rawptr) ---
 
-	@(link_name = "wl_client_create")
-	CreateClient :: proc(_: ^Display, _: c.int) -> ^Client ---
+	client_create :: proc(_: ^Display, _: c.int) -> ^Client ---
 
-	@(link_name = "wl_display_get_client_list")
-	GetDisplayClientList :: proc(_: ^Display) -> ^List ---
+	display_get_client_list :: proc(_: ^Display) -> ^List ---
 
-	@(link_name = "wl_client_get_link")
-	GetClientLink :: proc(_: ^Client) -> ^List ---
+	client_get_link :: proc(_: ^Client) -> ^List ---
 
-	@(link_name = "wl_client_from_link")
-	ClientFromLink :: proc(_: ^List) -> ^Client ---
+	client_from_link :: proc(_: ^List) -> ^Client ---
 
-	@(link_name = "wl_client_destroy")
-	DestroyClient :: proc(_: ^Client) ---
+	client_destroy :: proc(_: ^Client) ---
 
-	@(link_name = "wl_client_flush")
-	FlushClient :: proc(_: ^Client) ---
+	client_flush :: proc(_: ^Client) ---
 
-	@(link_name = "wl_client_get_credentials")
-	GetClientCredentials :: proc(_: ^Client, _: c.int, _: c.int, _: c.int) ---
+	client_get_credentials :: proc(_: ^Client, _: c.int, _: c.int, _: c.int) ---
 
-	@(link_name = "wl_client_get_fd")
-	GetClientFd :: proc(_: ^Client) -> c.int ---
+	client_get_fd :: proc(_: ^Client) -> c.int ---
 
-	@(link_name = "wl_client_add_destroy_listener")
-	AddDestroyListenerToClient :: proc(_: ^Client, _: ^Listener) ---
+	client_add_destroy_listener :: proc(_: ^Client, _: ^Listener) ---
 
-	@(link_name = "wl_client_get_destroy_listener")
-	GetDestroyListenerFromClient :: proc(_: ^Client, _: proc(_: ^Listener, _: rawptr)) -> ^Listener ---
+	client_get_destroy_listener :: proc(_: ^Client, _: proc(_: ^Listener, _: rawptr)) -> ^Listener ---
 
-	@(link_name = "wl_client_add_destroy_late_listener")
-	AddLateDestroyListenerToClient :: proc(_: ^Client, _: ^Listener) ---
+	client_add_destroy_late_listener :: proc(_: ^Client, _: ^Listener) ---
 
-	@(link_name = "wl_client_get_destroy_late_listener")
-	GetLateDestroyListenerFromClient :: proc(_: ^Client, _: proc(_: ^Listener, _: rawptr)) -> ^Listener ---
+	client_get_destroy_late_listener :: proc(_: ^Client, _: proc(_: ^Listener, _: rawptr)) -> ^Listener ---
 
-	@(link_name = "wl_client_get_object")
-	GetObjectFromClient :: proc(_: ^Client, _: c.uint32_t) -> ^Resource ---
+	client_get_object :: proc(_: ^Client, _: c.uint32_t) -> ^Resource ---
 
-	@(link_name = "wl_client_post_no_memory")
-	PostNoMemoryFromClient :: proc(_: ^Client) ---
+	client_post_no_memory :: proc(_: ^Client) ---
 
-	@(link_name = "wl_client_post_implementation_error")
-	PostImplementationErrorFromClient :: proc(_: ^Client, _: cstring, #c_vararg _: ..any) ---
+	client_post_implementation_error :: proc(_: ^Client, _: cstring, #c_vararg _: ..any) ---
 
-	@(link_name = "wl_client_add_resource_created_listener")
-	AddResourceCreatedListenerToClient :: proc(_: ^Client, _: ^Listener) ---
+	client_add_resource_created_listener :: proc(_: ^Client, _: ^Listener) ---
 
-	@(link_name = "wl_client_for_each_resource")
-	ForEachResourceInClient :: proc(_: ^Client, _: proc(_: ^Resource, _: rawptr) -> IteratorResult, _: rawptr) ---
+	client_for_each_resource :: proc(_: ^Client, _: proc(_: ^Resource, _: rawptr) -> IteratorResult, _: rawptr) ---
 
-	@(link_name = "wl_client_set_user_data")
-	SetClientUserData :: proc(_: ^Client, _: rawptr, _: proc(_: rawptr)) ---
+	client_set_user_data :: proc(_: ^Client, _: rawptr, _: proc(_: rawptr)) ---
 
-	@(link_name = "wl_client_set_max_buffer_size")
-	SetClientMaxBufferSize :: proc(_: ^Client, _: c.size_t) ---
+	client_set_max_buffer_size :: proc(_: ^Client, _: c.size_t) ---
 
-	@(link_name = "wl_signal_emit_mutable")
-	EmitMutableSignal :: proc(_: ^Signal, _: rawptr) ---
+	signal_emit_mutable :: proc(_: ^Signal, _: rawptr) ---
 
-	@(link_name = "wl_resource_post_event")
-	PostResourceEvent :: proc(_: ^Resource, _: c.uint32_t, #c_vararg _: ..any) ---
+	resource_post_event :: proc(_: ^Resource, _: c.uint32_t, #c_vararg _: ..any) ---
 
-	@(link_name = "wl_resource_post_event_array")
-	PostResourceEventArray :: proc(_: ^Resource, _: c.uint32_t, _: ^Argument) ---
+	resource_post_event_array :: proc(_: ^Resource, _: c.uint32_t, _: ^Argument) ---
 
-	@(link_name = "wl_resource_queue_event")
-	QueueResourceEvent :: proc(_: ^Resource, _: c.uint32_t, #c_vararg _: ..any) ---
+	resource_queue_event :: proc(_: ^Resource, _: c.uint32_t, #c_vararg _: ..any) ---
 
-	@(link_name = "wl_resource_queue_event_array")
-	QueueResourceEventArray :: proc(_: ^Resource, _: c.uint32_t, _: ^Argument) ---
+	resource_queue_event_array :: proc(_: ^Resource, _: c.uint32_t, _: ^Argument) ---
 
 
 }
 
-InitSignal :: proc(signal: ^Signal) {
-	InitList(&signal.listener_list)
+signal_init :: proc(signal: ^Signal) {
+	list_init(&signal.listener_list)
 }
 
-AddSignal :: proc(signal: ^Signal, listener: ^Listener) {
-	InsertIntoList(signal.listener_list.prev, &listener.link)
+signal_add :: proc(signal: ^Signal, listener: ^Listener) {
+	list_insert(signal.listener_list.prev, &listener.link)
 }
 
-GetSignal :: proc(signal: ^Signal, notify: proc(listener: ^Listener, data: rawptr)) -> ^Listener {
+signal_get :: proc(signal: ^Signal, notify: proc(listener: ^Listener, data: rawptr)) -> ^Listener {
 	l: ^Listener
-	for x in ForEachInList(&l, &signal.listener_list, "link", .Forward) {
+	for x in list_for_each(&l, &signal.listener_list, "link", .Forward) {
 		if x.notify == notify do return x
 	}
 	return nil
 }
 
-EmitSignal :: proc(signal: ^Signal, data: rawptr) {
+signal_emit :: proc(signal: ^Signal, data: rawptr) {
 	l, next: ^Listener
-	for x in SafeForEachInList(&l, &next, &signal.listener_list, "link", .Forward) {
+	for x in list_for_each_safe(&l, &next, &signal.listener_list, "link", .Forward) {
 		x.notify(x, data)
 	}
 }
@@ -251,11 +185,11 @@ EmitSignalToOneListenerTest :: proc(t: ^testing.T) {
 	signal: Signal
 	l1: Listener
 	l1.notify = NotifySignal
-	InitSignal(&signal)
-	AddSignal(&signal, &l1)
+	signal_init(&signal)
+	signal_add(&signal, &l1)
 	for x in 0 ..< 100 {
 		counter += 1
-		EmitSignal(&signal, &count)
+		signal_emit(&signal, &count)
 	}
-	testing.expect(t, counter == 100)
+	testing.expect(t, counter == count)
 }

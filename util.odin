@@ -2,6 +2,7 @@ package wayland
 import "core:c"
 foreign import wayland "system:libwayland-client.so"
 import "core:fmt"
+import "core:testing"
 Fixed :: c.int32_t
 
 Interface :: struct {
@@ -65,4 +66,16 @@ FixedToInt :: proc(f: Fixed) -> int {
 
 FixedFromInt :: proc(i: int) -> Fixed {
 	return Fixed(i * 256)
+}
+
+@(test)
+FixedDoubleConversionTest :: proc(t: ^testing.T) {
+	f: Fixed
+	d: f64 = 62.125
+	f = FixedFromDouble(d)
+	testing.expect(t, f == 0x3e20)
+
+	d = -1200.625
+	f = FixedFromDouble(d)
+	testing.expect(t, f == -0x4b0a0)
 }

@@ -1,3 +1,4 @@
+//todo: Not use concatenate as it is not efficient
 package scanner
 import "core:encoding/xml"
 import "core:fmt"
@@ -17,6 +18,7 @@ ProtocolData :: struct {
 	enums:               [dynamic]Enumeration,
 	description:         string,
 	description_summary: string,
+	side:                Side,
 }
 LineBreak :: "\r\n"
 protocol_data: ProtocolData
@@ -128,13 +130,16 @@ parse_interface :: proc(doc: ^xml.Document, el: ^xml.Element) -> Interface {
 		if node.ident == "request" {
 			append(
 				&interface.requests,
-				parse_requests_or_events(doc, &node, interface.name, opcode),
+				parse_requests_or_events(doc, &node, interface.name, opcode, .Request),
 			)
 			opcode += 1
 		}
 		//event
 		if node.ident == "event" {
-			append(&interface.events, parse_requests_or_events(doc, &node, interface.name, opcode))
+			append(
+				&interface.events,
+				parse_requests_or_events(doc, &node, interface.name, opcode, .Event),
+			)
 		}
 		//enum
 		if node.ident == "enum" {
@@ -148,6 +153,10 @@ parse_requests_or_events :: proc(
 	el: ^xml.Element,
 	interface_name: string,
 	opcode: int,
+	type: enum {
+		Request,
+		Event,
+	},
 ) -> Request {
 	request: Request
 	//initially set to not a destructor, will be updated in below loop if necessary
@@ -155,7 +164,8 @@ parse_requests_or_events :: proc(
 	request.has_newid = false
 	request.opcode = opcode
 	for attrib in el.attribs {
-		if attrib.key == "name" do request.name = strings.concatenate({interface_name, "_", attrib.val})
+		//do not concatenate interface name if it is an event
+		if attrib.key == "name" do request.name = strings.concatenate({interface_name, "_", attrib.val}) if type == .Request else attrib.val
 		if attrib.key == "type" {
 			if attrib.val == "destructor" {
 				request.is_destructor = true
@@ -221,6 +231,13 @@ parse_args :: proc(args: []string) {
 	}
 	if len(args) < 4 do die("Not enough arguments")
 	if args[1] != "client" && args[1] != "server" do die("Argument one must be either 'client' or 'server'")
+	if args[1] == "server" {
+		protocol_data.side = .Server
+		die("Only client side scanning is supported")
+	} else if args[1] == "client" {
+		protocol_data.side = .Client
+	}
+
 }
 
 die :: proc(msg: string) {
@@ -277,9 +294,9 @@ emit_interface :: proc() {
 			{
 				setter,
 				repeat(" ", Tab_Size),
-				"wl.proxy_set_user_data((^wl.Proxy)",
+				"wl.proxy_set_user_data((^wl.Proxy)(",
 				interface.name,
-				", user_data)",
+				"), user_data)",
 				LineBreak,
 				"}",
 			},
@@ -304,9 +321,9 @@ emit_interface :: proc() {
 				getter,
 				repeat(" ", Tab_Size),
 				"return ",
-				"wl.proxy_get_user_data((^wl.Proxy)",
+				"wl.proxy_get_user_data((^wl.Proxy)(",
 				interface.name,
-				")",
+				"))",
 				LineBreak,
 				"}",
 			},
@@ -332,9 +349,9 @@ emit_interface :: proc() {
 				version,
 				repeat(" ", Tab_Size),
 				"return ",
-				"wl.proxy_get_version((^wl.Proxy)",
+				"wl.proxy_get_version((^wl.Proxy)(",
 				interface.name,
-				")",
+				"))",
 				LineBreak,
 				"}",
 			},
@@ -377,16 +394,16 @@ emit_requests :: proc() {
 					request_body,
 					repeat(" ", Tab_Size),
 					"wl.proxy_marshal_flags(",
-					"(^wl.Proxy)",
+					"(^wl.Proxy)(",
 					interface.name,
-					", ",
+					"), ",
 					strconv.itoa(opcode_to_int_buf[:], request.opcode),
 					", ",
 					"nil, ",
 					"wl.proxy_get_version(",
-					"(^wl.Proxy)",
+					"(^wl.Proxy)(",
 					interface.name,
-					"), ",
+					")), ",
 					"0", //?
 				},
 			)
@@ -400,6 +417,65 @@ emit_requests :: proc() {
 		}
 	}
 }
+emit_events :: proc() {
+	using strings
+	for interface in protocol_data.interfaces {
+		//skip if interface has no events 
+		if len(interface.events) == 0 do continue
+		//every interface needs an add listener procedure
+		add_listener := concatenate(
+			{
+				interface.name,
+				"_add_listener :: proc(",
+				interface.name,
+				" : ^",
+				interface.name,
+				", listener: ^",
+				interface.name,
+				"_listener, data: rawptr) -> c.int {",
+				LineBreak,
+			},
+		)
+		add_listener = concatenate(
+			{
+				add_listener,
+				repeat(" ", Tab_Size),
+				"return wl.proxy_add_listener((^wl.Proxy)(",
+				interface.name,
+				"), (^rawptr)(listener),data)",
+				LineBreak,
+				"}",
+			},
+		)
+		write_to_buffer(add_listener)
+		//listener for interface
+		listener_body := concatenate({interface.name, "_listener :: struct {", LineBreak})
+		for event in interface.events {
+			listener_body = concatenate(
+				{
+					listener_body,
+					repeat(" ", Tab_Size),
+					event.name,
+					" : proc(data:rawptr,",
+					interface.name,
+					": ^",
+					interface.name,
+				},
+			)
+			//append arguments
+			for arg in event.args {
+				listener_body = concatenate(
+					{listener_body, " ,", arg.name, " : ", wl_type_to_odin_type(arg)},
+				)
+			}
+			listener_body = concatenate({listener_body, "),", LineBreak})
+		}
+		//close listener struct
+		listener_body = concatenate({listener_body, LineBreak, "}"})
+		write_to_buffer(listener_body)
+		write_to_buffer(LineBreak)
+	}
+}
 emit_client_destructor_request :: proc(request: Request, interface: Interface) {
 	using strings
 	request_body := concatenate(
@@ -411,16 +487,16 @@ emit_client_destructor_request :: proc(request: Request, interface: Interface) {
 			request_body,
 			repeat(" ", Tab_Size),
 			"wl.proxy_marshal_flags(",
-			"(^wl.Proxy)",
+			"(^wl.Proxy)(",
 			interface.name,
-			", ",
+			"), ",
 			strconv.itoa(opcode_to_int_buf[:], request.opcode),
 			", ",
 			"nil, ",
 			"wl.proxy_get_version(",
-			"(^wl.Proxy)",
+			"(^wl.Proxy)(",
 			interface.name,
-			"), ",
+			")), ",
 			"wl.MARSHAL_FLAG_DESTROY",
 			")",
 			LineBreak,
@@ -444,42 +520,49 @@ emit_client_new_type_request :: proc(request: Request, interface: Interface) {
 		}
 		request_body = concatenate({request_body, ",", arg.name, ": ", wl_type_to_odin_type(arg)})
 	}
-	opcode_to_int_buf: [64]u8
-	request_body = concatenate({request_body, " ) -> ^", new_id_arg.interface, "{", LineBreak})
-	request_body = concatenate({request_body, repeat("", Tab_Size), "data: ^wl.Proxy", LineBreak})
-	request_body = concatenate(
-		{
-			request_body,
-			repeat(" ", Tab_Size),
-			"data = wl.proxy_marshal_flags(",
-			"(^wl.Proxy)",
-			interface.name,
-			", ",
-			strconv.itoa(opcode_to_int_buf[:], request.opcode),
-			", ",
-			"&",
-			new_id_arg.interface,
-			"_interface",
-			",",
-			"wl.proxy_get_version(",
-			"(^wl.Proxy)",
-			interface.name,
-			"), ",
-			"0,", //?
-			"nil",
-		},
-	)
-	//append variables to proxy_marshal_flags
-	for arg in request.args {
-		if arg.new_type do continue
-		request_body = concatenate({request_body, ", ", arg.name})
+	//if new id has interface
+	if len(new_id_arg.interface) != 0 {
+		opcode_to_int_buf: [64]u8
+		request_body = concatenate({request_body, " ) -> ^", new_id_arg.interface, "{", LineBreak})
+		request_body = concatenate(
+			{request_body, repeat("", Tab_Size), "data: ^wl.Proxy", LineBreak},
+		)
+		request_body = concatenate(
+			{
+				request_body,
+				repeat(" ", Tab_Size),
+				"data = wl.proxy_marshal_flags(",
+				"(^wl.Proxy)(",
+				interface.name,
+				"), ",
+				strconv.itoa(opcode_to_int_buf[:], request.opcode),
+				", ",
+				"&",
+				new_id_arg.interface,
+				"_interface",
+				",",
+				"wl.proxy_get_version(",
+				"(^wl.Proxy)(",
+				interface.name,
+				")), ",
+				"0,", //?
+				"nil",
+			},
+		)
+		//append variables to proxy_marshal_flags
+		for arg in request.args {
+			if arg.new_type do continue
+			request_body = concatenate({request_body, ", ", arg.name})
+		}
+		request_body = concatenate({request_body, ")", LineBreak})
+		request_body = concatenate(
+			{request_body, "return (^", new_id_arg.interface, ")(data)", LineBreak, "}"},
+		)
+		write_to_buffer(request_body)
+		write_to_buffer(LineBreak)
+	} else {
+		//return rawptr
 	}
-	request_body = concatenate({request_body, ")", LineBreak})
-	request_body = concatenate(
-		{request_body, "return (^", new_id_arg.interface, ") data", LineBreak, "}"},
-	)
-	write_to_buffer(request_body)
-	write_to_buffer(LineBreak)
 }
 
 main :: proc() {
@@ -490,17 +573,28 @@ main :: proc() {
 	if err != .None do die("Could not load protocol. Aborting...")
 	write_to_buffer("/* GENERATED BY ODIN WAYLAND SCANNER*/")
 	//scanner currently assumes wayland bindings are in the shared collection, write import of binds to buffer
-	write_to_buffer("import wl \"shared:wayland\"")
+	write_to_buffer("package scanner")
+	// write_to_buffer("import wl \"shared:wayland\"")
+	write_to_buffer("import wl \"../\"")
 	write_to_buffer("import \"core:c\"")
 	parse_protocol(doc)
 
 	//emissions
 	emit_interface()
 	emit_requests()
+	emit_events()
 	emit_enums()
+
+	emit_protocol_to_file(args[3])
 	fmt.println(strings.to_string(Buffer))
 }
 
+emit_protocol_to_file :: proc(output_path: string) {
+	output_path := output_path
+	side := "client" if protocol_data.side == .Client else "server"
+	output_path = strings.concatenate({protocol_data.name, "_", side, ".odin"})
+	os.write_entire_file(output_path, Buffer.buf[:])
+}
 write_to_buffer :: proc(text: string) {
 	strings.write_string(&Buffer, text)
 	if text != LineBreak do strings.write_string(&Buffer, LineBreak)

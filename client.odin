@@ -17,7 +17,7 @@ foreign wayland {
 	@(link_name = "event_queue_destroy")
 	event_queue_destroy :: proc(_: ^EventQueue) ---
 
-	proxy_marshal_flags :: proc(_: ^Proxy, _: c.uint32_t, _: Interface, _: c.uint32_t, _: c.uint32_t, #c_vararg _: ..any) -> ^Proxy ---
+	proxy_marshal_flags :: proc(_: ^Proxy, _: c.uint32_t, _: ^Interface, _: c.uint32_t, _: c.uint32_t, #c_vararg _: ..any) -> ^Proxy ---
 
 	proxy_marshal_array_flags :: proc(_: ^Proxy, _: c.uint32_t, _: ^Interface, _: c.uint32_t, _: c.uint32_t, _: ^Argument) -> ^Proxy ---
 
@@ -42,6 +42,8 @@ foreign wayland {
 	proxy_destroy :: proc(_: ^Proxy) ---
 
 	proxy_get_listener :: proc(_: ^Proxy) -> rawptr ---
+
+	proxy_add_listener :: proc(_: ^Proxy, _: ^rawptr, _: rawptr) -> c.int ---
 
 	proxy_add_dispatcher :: proc(_: ^Proxy, _: proc(_: rawptr, _: rawptr, _: c.uint32_t, _: Message, _: Argument) -> c.int, _: rawptr, _: rawptr) -> c.int ---
 

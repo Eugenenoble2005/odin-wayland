@@ -277,8 +277,12 @@ emit_interface :: proc() {
 	//first emit simple opaque structs
 	for interface in protocol_data.interfaces {
 		//exclude wl_display because that is in the core library.
-		// if interface.name == "wl_display" do continue
-		struct_ := concatenate({interface.name, " :: ", "struct {}"})
+		struct_: string
+		if interface.name == "wl_display" {
+			struct_ = "wl_display :: wl.Display"
+		} else {
+			struct_ = concatenate({interface.name, " :: ", "struct {}"})
+		}
 
 		//wl_interface
 		interface_ := concatenate({interface.name, "_interface", " : ", "wl.Interface"})
@@ -636,7 +640,36 @@ emit_client_new_type_request :: proc(request: Request, interface: Interface) {
 	write_to_buffer(request_body)
 	write_to_buffer(LineBreak)
 }
+//copied from https://github.com/jqcorreia/wayland-odin, i dont really understand how it works
+// emit_private_code :: proc() {
+// 	using strings
+// 	for interface in protocol_data.interfaces {
+// 		request_body := concatenate({interface.name, "_requests := []wl.Message {", LineBreak})
+// 		for request in interface.requests {
+// 			for arg in request.args {
+// 				if arg.interface == "" {
+// 					if arg.interface != "" {
 
+// 					}
+// 				}
+// 			}
+// 		}
+// 		request_body = concatenate({"}"})
+// 	}
+// }
+emit_protocol_to_file :: proc(output_path: string) {
+	output_path := output_path
+	side := "client" if protocol_data.side == .Client else "server"
+	file_name := strings.concatenate({protocol_data.name, "_", side, ".odin"})
+	abs_path, ok := filepath.abs(output_path)
+	if !ok do die("Ouput path does not exist")
+	output_path = filepath.join({abs_path, file_name})
+	os.write_entire_file(output_path, Buffer.buf[:])
+}
+write_to_buffer :: proc(text: string) {
+	strings.write_string(&Buffer, text)
+	if text != LineBreak do strings.write_string(&Buffer, LineBreak)
+}
 main :: proc() {
 	args := os.args
 	parse_args(args)
@@ -656,19 +689,6 @@ main :: proc() {
 	emit_requests()
 	emit_events()
 	emit_enums()
+	// emit_private_code()
 	emit_protocol_to_file(args[3])
-}
-
-emit_protocol_to_file :: proc(output_path: string) {
-	output_path := output_path
-	side := "client" if protocol_data.side == .Client else "server"
-	file_name := strings.concatenate({protocol_data.name, "_", side, ".odin"})
-	abs_path, ok := filepath.abs(output_path)
-	if !ok do die("Ouput path does not exist")
-	output_path = filepath.join({abs_path, file_name})
-	os.write_entire_file(output_path, Buffer.buf[:])
-}
-write_to_buffer :: proc(text: string) {
-	strings.write_string(&Buffer, text)
-	if text != LineBreak do strings.write_string(&Buffer, LineBreak)
 }

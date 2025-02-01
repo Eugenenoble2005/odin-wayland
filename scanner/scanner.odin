@@ -4,6 +4,7 @@ import "core:encoding/xml"
 import "core:fmt"
 import "core:log"
 import "core:os"
+import "core:path/filepath"
 import "core:strconv"
 import "core:strings"
 
@@ -248,10 +249,22 @@ die :: proc(msg: string) {
 emit_enums :: proc() {
 	using strings
 	for enumeration in protocol_data.enums {
-		enum_ := concatenate({enumeration.name, " ", ":: ", "enum c.int32_t", "{\r\n"})
+		enum_ := concatenate({enumeration.name, "_enum ", ":: ", "enum c.int32_t", "{\r\n"})
 		for value in enumeration.values {
 			for key, val in value {
-				enum_ = concatenate({enum_, repeat(" ", Tab_Size), key, " = ", val, ",", "\r\n"})
+				enum_ = concatenate(
+					{
+						enum_,
+						repeat(" ", Tab_Size),
+						enumeration.name,
+						"_",
+						key,
+						" = ",
+						val,
+						",",
+						"\r\n",
+					},
+				)
 			}
 		}
 		enum_ = concatenate({enum_, "}", "\r\n"})
@@ -264,7 +277,7 @@ emit_interface :: proc() {
 	//first emit simple opaque structs
 	for interface in protocol_data.interfaces {
 		//exclude wl_display because that is in the core library.
-		if interface.name == "wl_display" do continue
+		// if interface.name == "wl_display" do continue
 		struct_ := concatenate({interface.name, " :: ", "struct {}"})
 
 		//wl_interface
@@ -379,7 +392,7 @@ emit_requests :: proc() {
 			}
 
 			request_body := concatenate(
-				{request.name, " :: ", "proc(", interface.name, ": ^", interface.name},
+				{request.name, " :: ", "proc(_", interface.name, ": ^", interface.name},
 			)
 			//go through args
 			for arg in request.args {
@@ -394,14 +407,14 @@ emit_requests :: proc() {
 					request_body,
 					repeat(" ", Tab_Size),
 					"wl.proxy_marshal_flags(",
-					"(^wl.Proxy)(",
+					"(^wl.Proxy)(_",
 					interface.name,
 					"), ",
 					strconv.itoa(opcode_to_int_buf[:], request.opcode),
 					", ",
 					"nil, ",
 					"wl.proxy_get_version(",
-					"(^wl.Proxy)(",
+					"(^wl.Proxy)(_",
 					interface.name,
 					")), ",
 					"0", //?
@@ -479,7 +492,7 @@ emit_events :: proc() {
 emit_client_destructor_request :: proc(request: Request, interface: Interface) {
 	using strings
 	request_body := concatenate(
-		{request.name, " :: ", "proc(", interface.name, ": ^", interface.name, "){", LineBreak},
+		{request.name, " :: ", "proc(_", interface.name, ": ^", interface.name, "){", LineBreak},
 	)
 	opcode_to_int_buf: [64]u8
 	request_body = concatenate(
@@ -487,14 +500,14 @@ emit_client_destructor_request :: proc(request: Request, interface: Interface) {
 			request_body,
 			repeat(" ", Tab_Size),
 			"wl.proxy_marshal_flags(",
-			"(^wl.Proxy)(",
+			"(^wl.Proxy)(_",
 			interface.name,
 			"), ",
 			strconv.itoa(opcode_to_int_buf[:], request.opcode),
 			", ",
 			"nil, ",
 			"wl.proxy_get_version(",
-			"(^wl.Proxy)(",
+			"(^wl.Proxy)(_",
 			interface.name,
 			")), ",
 			"wl.MARSHAL_FLAG_DESTROY",
@@ -509,7 +522,7 @@ emit_client_destructor_request :: proc(request: Request, interface: Interface) {
 emit_client_new_type_request :: proc(request: Request, interface: Interface) {
 	using strings
 	request_body := concatenate(
-		{request.name, " :: ", "proc(", interface.name, ": ^", interface.name},
+		{request.name, " :: ", "proc(_", interface.name, ": ^", interface.name},
 	)
 	new_id_arg: Arg
 	//go through args but skip the new_id 
@@ -525,14 +538,14 @@ emit_client_new_type_request :: proc(request: Request, interface: Interface) {
 		opcode_to_int_buf: [64]u8
 		request_body = concatenate({request_body, " ) -> ^", new_id_arg.interface, "{", LineBreak})
 		request_body = concatenate(
-			{request_body, repeat("", Tab_Size), "data: ^wl.Proxy", LineBreak},
+			{request_body, repeat(" ", Tab_Size), "data: ^wl.Proxy", LineBreak},
 		)
 		request_body = concatenate(
 			{
 				request_body,
 				repeat(" ", Tab_Size),
 				"data = wl.proxy_marshal_flags(",
-				"(^wl.Proxy)(",
+				"(^wl.Proxy)(_",
 				interface.name,
 				"), ",
 				strconv.itoa(opcode_to_int_buf[:], request.opcode),
@@ -542,7 +555,7 @@ emit_client_new_type_request :: proc(request: Request, interface: Interface) {
 				"_interface",
 				",",
 				"wl.proxy_get_version(",
-				"(^wl.Proxy)(",
+				"(^wl.Proxy)(_",
 				interface.name,
 				")), ",
 				"0,", //?
@@ -556,13 +569,72 @@ emit_client_new_type_request :: proc(request: Request, interface: Interface) {
 		}
 		request_body = concatenate({request_body, ")", LineBreak})
 		request_body = concatenate(
-			{request_body, "return (^", new_id_arg.interface, ")(data)", LineBreak, "}"},
+			{
+				request_body,
+				repeat(" ", Tab_Size),
+				"return (^",
+				new_id_arg.interface,
+				")(data)",
+				LineBreak,
+				"}",
+			},
 		)
-		write_to_buffer(request_body)
-		write_to_buffer(LineBreak)
 	} else {
 		//return rawptr
+		opcode_to_int_buf: [64]u8
+		request_body = concatenate(
+			{
+				request_body,
+				", interface: ^wl.Interface, version: c.uint32_t ) -> rawptr",
+				"{",
+				LineBreak,
+			},
+		)
+		request_body = concatenate(
+			{request_body, repeat(" ", Tab_Size), "data: ^wl.Proxy", LineBreak},
+		)
+		request_body = concatenate(
+			{
+				request_body,
+				repeat(" ", Tab_Size),
+				"data = wl.proxy_marshal_flags(",
+				"(^wl.Proxy)(_",
+				interface.name,
+				"), ",
+				strconv.itoa(opcode_to_int_buf[:], request.opcode),
+				", ",
+				"interface",
+				",version",
+				",0",
+				//command args here?
+				// "wl.proxy_get_version(",
+				// "(^wl.Proxy)(_",
+				// interface.name,
+				// ")), ",
+				// "0,", //?
+				// "nil",
+			},
+		)
+		for arg in request.args {
+			if arg.new_type do continue
+			request_body = concatenate({request_body, ", ", arg.name})
+		}
+		request_body = concatenate(
+			{
+				request_body,
+				", interface.name,version,nil)",
+				LineBreak,
+				repeat(" ", Tab_Size),
+				"return (rawptr)(data)",
+				LineBreak,
+				"}",
+			},
+		)
+
+
 	}
+	write_to_buffer(request_body)
+	write_to_buffer(LineBreak)
 }
 
 main :: proc() {
@@ -574,8 +646,8 @@ main :: proc() {
 	write_to_buffer("/* GENERATED BY ODIN WAYLAND SCANNER*/")
 	//scanner currently assumes wayland bindings are in the shared collection, write import of binds to buffer
 	write_to_buffer("package scanner")
-	// write_to_buffer("import wl \"shared:wayland\"")
-	write_to_buffer("import wl \"../\"")
+	write_to_buffer("import wl \"shared:wayland\"")
+	// write_to_buffer("import wl \"../\"")
 	write_to_buffer("import \"core:c\"")
 	parse_protocol(doc)
 
@@ -584,15 +656,16 @@ main :: proc() {
 	emit_requests()
 	emit_events()
 	emit_enums()
-
 	emit_protocol_to_file(args[3])
-	fmt.println(strings.to_string(Buffer))
 }
 
 emit_protocol_to_file :: proc(output_path: string) {
 	output_path := output_path
 	side := "client" if protocol_data.side == .Client else "server"
-	output_path = strings.concatenate({protocol_data.name, "_", side, ".odin"})
+	file_name := strings.concatenate({protocol_data.name, "_", side, ".odin"})
+	abs_path, ok := filepath.abs(output_path)
+	if !ok do die("Ouput path does not exist")
+	output_path = filepath.join({abs_path, file_name})
 	os.write_entire_file(output_path, Buffer.buf[:])
 }
 write_to_buffer :: proc(text: string) {

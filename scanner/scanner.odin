@@ -41,6 +41,7 @@ Enumeration :: struct {
 }
 Request :: struct {
 	name:          string,
+	true_name:     string,
 	description:   string,
 	since:         string,
 	opcode:        int,
@@ -166,7 +167,11 @@ parse_requests_or_events :: proc(
 	request.opcode = opcode
 	for attrib in el.attribs {
 		//do not concatenate interface name if it is an event
-		if attrib.key == "name" do request.name = strings.concatenate({interface_name, "_", attrib.val}) if type == .Request else attrib.val
+		if attrib.key == "name" {
+			request.name =
+				strings.concatenate({interface_name, "_", attrib.val}) if type == .Request else attrib.val
+			request.true_name = attrib.val
+		}
 		if attrib.key == "type" {
 			if attrib.val == "destructor" {
 				request.is_destructor = true
@@ -640,23 +645,130 @@ emit_client_new_type_request :: proc(request: Request, interface: Interface) {
 	write_to_buffer(request_body)
 	write_to_buffer(LineBreak)
 }
-//copied from https://github.com/jqcorreia/wayland-odin, i dont really understand how it works
-// emit_private_code :: proc() {
-// 	using strings
-// 	for interface in protocol_data.interfaces {
-// 		request_body := concatenate({interface.name, "_requests := []wl.Message {", LineBreak})
-// 		for request in interface.requests {
-// 			for arg in request.args {
-// 				if arg.interface == "" {
-// 					if arg.interface != "" {
+// copied from https://github.com/jqcorreia/wayland-odin, i dont really understand how it works
+emit_private_code :: proc() {
+	using strings
+	for interface in protocol_data.interfaces {
+		request_body := concatenate({interface.name, "_requests := []wl.Message {", LineBreak})
+		events_body := concatenate({interface.name, "_events:= []wl.Message {", LineBreak})
+		for request in interface.requests {
+			type_arr: [dynamic]string
+			for arg in request.args {
+				if arg.interface != "" {
+					append(&type_arr, fmt.tprintf("&%s_interface", arg.interface))
+				} else {
+					append(&type_arr, "nil")
+				}
+			}
+			request_body = concatenate(
+				{
+					request_body,
+					repeat(" ", Tab_Size),
+					"{ ",
+					"\"",
+					request.true_name,
+					"\"",
+					",",
+					"\"",
+					emit_args_strings(request.args),
+					"\"",
+					",",
+					"raw_data([]^wl.Interface{",
+					strings.join(type_arr[:], ","),
+					"}) },",
+					LineBreak,
+				},
+			)
+		}
+		for event in interface.events {
+			events_body = concatenate(
+				{
+					events_body,
+					repeat(" ", Tab_Size),
+					"{",
+					"\"",
+					event.name,
+					"\", ",
+					"\"",
+					emit_args_strings(event.args),
+					"\", ",
+					"nil },",
+					LineBreak,
+				},
+			)
+		}
+		//init method
+		init_method := "@(init)"
+		init_method = concatenate(
+			{init_method, LineBreak, "init_", interface.name, "_interface :: proc(){", LineBreak},
+		)
+		init_method = concatenate({init_method, repeat(" ", Tab_Size)})
+		init_method = concatenate({init_method, interface.name, "_interface = {"})
+		conv_buf: [64]u8
+		init_method = concatenate(
+			{
+				init_method,
+				"\"",
+				interface.name,
+				"\", ",
+				interface.version,
+				", ",
+				strconv.itoa(conv_buf[:], len(interface.requests)),
+				", ",
+			},
+		)
+		if len(interface.requests) > 0 {
+			init_method = concatenate({init_method, "&", interface.name, "_requests[0], "})
+		} else {
+			init_method = concatenate({init_method, "nil, "})
+		}
+		init_method = concatenate(
+			{init_method, strconv.itoa(conv_buf[:], len(interface.events)), ","},
+		)
+		if len(interface.events) > 0 {
+			init_method = concatenate({init_method, "&", interface.name, "_events[0], "})
+		} else {
+			init_method = concatenate({init_method, "nil, "})
+		}
 
-// 					}
-// 				}
-// 			}
-// 		}
-// 		request_body = concatenate({"}"})
-// 	}
-// }
+		init_method = concatenate({init_method, "}", LineBreak, "}"})
+		request_body = concatenate({request_body, "}"})
+		events_body = concatenate({events_body, "}"})
+		write_to_buffer(request_body)
+		write_to_buffer(events_body)
+		write_to_buffer(init_method)
+	}
+}
+emit_args_strings :: proc(args: [dynamic]Arg) -> string {
+	res: string = ""
+	for arg in args {
+		c: string = ""
+		// Just check if it is indeed a nullable type
+		if (arg.type == "object" || arg.type == "string") && arg.allow_null {
+			res = strings.concatenate({res, "?"})
+		}
+		switch (arg.type) {
+		case "int":
+			c = "i"
+		case "new_id":
+			c = arg.interface == "" ? "sun" : "n"
+		case "uint":
+			c = "u"
+		case "fixed":
+			c = "f"
+		case "string":
+			c = "s"
+		case "object":
+			c = "o"
+		case "array":
+			c = "a"
+		case "fd":
+			c = "h"
+		}
+		res = strings.concatenate({res, c})
+	}
+	return res
+}
 emit_protocol_to_file :: proc(output_path: string) {
 	output_path := output_path
 	side := "client" if protocol_data.side == .Client else "server"
@@ -689,6 +801,6 @@ main :: proc() {
 	emit_requests()
 	emit_events()
 	emit_enums()
-	// emit_private_code()
+	emit_private_code()
 	emit_protocol_to_file(args[3])
 }

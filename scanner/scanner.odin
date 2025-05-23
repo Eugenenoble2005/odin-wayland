@@ -1,3 +1,4 @@
+#+feature dynamic-literals
 //todo: Not use concatenate as it is not efficient
 package scanner
 import "core:encoding/xml"
